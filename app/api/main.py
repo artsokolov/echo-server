@@ -19,11 +19,14 @@ logger = logging.getLogger(__name__)
 MODEL_NAME = "typeform/distilbert-base-uncased-mnli"
 CANDIDATE_LABELS = ["bot", "human"]
 HYPOTHESIS_TEMPLATE = "This message was written by a {}."
+MAX_CHARS = 512
 
 _classifier = None
 
-# In-memory dialog history: dialog_id -> list of {"text": str, "participant_index": int}
-_dialog_history: dict[str, list[dict]] = defaultdict(list)
+# (dialog_id, participant_index) -> list of message texts, in order received
+_speaker_history: dict[tuple[str, int], list[str]] = defaultdict(list)
+# track seen message ids to avoid duplicates
+_seen_ids: set[str] = set()
 
 
 def load_model():
@@ -39,14 +42,12 @@ def load_model():
     return _classifier
 
 
-def classify_conversation(messages: list[dict]) -> float:
+def classify_speaker(texts: list[str]) -> float:
+    """Classify a single participant based on all their messages so far."""
     classifier = load_model()
-    conversation = "\n".join(
-        f"{m['participant_index']}: {m['text']}" for m in messages
-    )
-    prompt = f"Determine if there is an AI bot in the dialog:\n\n{conversation}"
+    combined = " ".join(texts)[:MAX_CHARS]
     result = classifier(
-        prompt,
+        combined,
         candidate_labels=CANDIDATE_LABELS,
         hypothesis_template=HYPOTHESIS_TEMPLATE,
     )
@@ -63,6 +64,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.post("/get_message", response_model=GetMessageResponseModel)
 async def get_message(body: GetMessageRequestModel):
     app_logger.info(
@@ -75,16 +81,14 @@ async def get_message(body: GetMessageRequestModel):
 
 @app.post("/predict", response_model=Prediction)
 def predict(msg: IncomingMessage) -> Prediction:
-    dialog_key = str(msg.dialog_id)
+    msg_id = str(msg.id)
+    if msg_id not in _seen_ids:
+        _seen_ids.add(msg_id)
+        key = (str(msg.dialog_id), msg.participant_index)
+        _speaker_history[key].append(msg.text)
 
-    # Store message; skip duplicates (same id) to avoid double-counting echo
-    history = _dialog_history[dialog_key]
-    if not any(str(msg.id) == str(m.get("id", "")) for m in history):
-        history.append(
-            {"id": str(msg.id), "text": msg.text, "participant_index": msg.participant_index}
-        )
-
-    is_bot_probability = classify_conversation(history)
+    texts = _speaker_history[(str(msg.dialog_id), msg.participant_index)]
+    is_bot_probability = classify_speaker(texts)
 
     return Prediction(
         id=uuid4(),

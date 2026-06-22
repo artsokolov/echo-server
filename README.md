@@ -8,7 +8,7 @@ Echo bot with message classification. The FastAPI server classifies each message
 uv sync
 ```
 
-## Running
+## Running locally (dev)
 
 Open two terminals:
 
@@ -21,6 +21,32 @@ PYTHONPATH=$(pwd) uv run streamlit run app/web/streamlit_app.py --server.port 85
 ```
 
 Open in browser: http://localhost:8502
+
+## Running with public tunnel (for youare.bot)
+
+The platform needs to reach your `/get_message` and `/predict` endpoints over the internet.
+`run.sh` opens an SSH reverse tunnel and prints the public URL to register.
+
+```bash
+# 1. Download the SSH key from the quickstart repo (one-time)
+curl -L https://raw.githubusercontent.com/open-cu/youarebot-quickstart/main/portforward_key \
+  -o portforward_key
+chmod 600 portforward_key
+
+# 2. Start everything
+./run.sh
+```
+
+The script will print:
+
+```
+Register this URL on youare.bot:
+http://158.160.135.246:<port>
+```
+
+Register that URL on the platform, then start a chat. After the chat ends,
+the platform computes ML metrics from the `is_bot_probability` values
+your `/predict` endpoint returned.
 
 ## Endpoints
 
