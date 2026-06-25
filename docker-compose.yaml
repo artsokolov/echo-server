@@ -1,5 +1,39 @@
 services:
 
+  # ── 1. MLflow: experiment tracking & model registry ────────────────────────
+  mlflow:
+    build:
+      context: services/mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/api/2.0/mlflow/experiments/search', timeout=5)\""]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # ── 2. Classifier: FastAPI microservice with /predict ──────────────────────
+  classifier:
+    build:
+      context: services/classifier
+    ports:
+      - "8001:8000"          # also reachable at localhost:8001 for local testing
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)\""]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 120s     # model download on first start
+
+  # ── 3. LLM: Ollama server with OpenAI-compatible API ──────────────────────
   llm:
     image: ollama/ollama
     entrypoint: ["/bin/bash", "/scripts/ollama_start.sh"]
@@ -13,19 +47,32 @@ services:
       interval: 15s
       timeout: 10s
       retries: 40
-      start_period: 300s  # first run downloads ~1 GB model
+      start_period: 300s     # first run downloads ~1 GB model
 
-  fastapi:
-    build: .
-    command: fastapi run app/api/main.py --host 0.0.0.0 --port 6872
+  # ── 4. Orchestrator: public API gateway ────────────────────────────────────
+  #      POST /predict     → http://classifier:8000/predict
+  #      POST /get_message → http://llm:11434/v1/chat/completions
+  orchestrator:
+    build:
+      context: services/orchestrator
     ports:
-      - "6872:6872"
+      - "6872:8000"          # public port kept for backward compat with youare.bot
     environment:
+      - CLASSIFIER_URL=http://classifier:8000
       - LLM_URL=http://llm:11434
+      - LLM_MODEL=qwen2.5:1.5b
     depends_on:
+      classifier:
+        condition: service_healthy
       llm:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
+  # ── Streamlit UI (unchanged, now points to orchestrator) ───────────────────
   streamlit:
     build: .
     command: >
@@ -35,9 +82,10 @@ services:
     ports:
       - "8502:8502"
     environment:
-      - FASTAPI_URL=http://fastapi:6872
+      - FASTAPI_URL=http://orchestrator:8000
     depends_on:
-      - fastapi
+      - orchestrator
 
 volumes:
   ollama_data:
+  mlflow_data:
