@@ -5,11 +5,11 @@ services:
     build:
       context: services/mlflow
     ports:
-      - "5000:5000"
+      - "5001:5000"
     volumes:
       - mlflow_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/api/2.0/mlflow/experiments/search', timeout=5)\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/', timeout=5)\""]
       interval: 10s
       timeout: 10s
       retries: 5
