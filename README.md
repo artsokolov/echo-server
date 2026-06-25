@@ -22,6 +22,19 @@ PYTHONPATH=$(pwd) uv run streamlit run app/web/streamlit_app.py --server.port 85
 
 Open in browser: http://localhost:8502
 
+## Running with Docker Compose
+
+Starts three services: llama.cpp LLM, FastAPI bot, Streamlit UI.
+On first run downloads the Qwen2.5-1.5B model (~1 GB) — wait a few minutes before opening the chat.
+
+```bash
+docker compose up --build
+```
+
+Open in browser: http://localhost:8502
+
+The SSH tunnel (`run.sh`) still works for exposing the service to youare.bot — it points to port 6872 which is the same FastAPI port.
+
 ## Running with public tunnel (for youare.bot)
 
 The platform needs to reach your `/get_message` and `/predict` endpoints over the internet.

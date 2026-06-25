@@ -1,0 +1,43 @@
+services:
+
+  llm:
+    image: ollama/ollama
+    entrypoint: ["/bin/bash", "/scripts/ollama_start.sh"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./scripts:/scripts
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list | grep -q qwen2.5"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 300s  # first run downloads ~1 GB model
+
+  fastapi:
+    build: .
+    command: fastapi run app/api/main.py --host 0.0.0.0 --port 6872
+    ports:
+      - "6872:6872"
+    environment:
+      - LLM_URL=http://llm:11434
+    depends_on:
+      llm:
+        condition: service_healthy
+
+  streamlit:
+    build: .
+    command: >
+      streamlit run app/web/streamlit_app.py
+      --server.port 8502
+      --server.address 0.0.0.0
+    ports:
+      - "8502:8502"
+    environment:
+      - FASTAPI_URL=http://fastapi:6872
+    depends_on:
+      - fastapi
+
+volumes:
+  ollama_data:

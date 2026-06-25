@@ -1,12 +1,16 @@
 import logging
+import os
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
+import httpx
 from fastapi import FastAPI
 from transformers import pipeline
 
 from app.core.logging import app_logger
+
+LLM_URL = os.getenv("LLM_URL", "http://localhost:8080")
 from app.models import (
     GetMessageRequestModel,
     GetMessageResponseModel,
@@ -74,9 +78,30 @@ async def get_message(body: GetMessageRequestModel):
     app_logger.info(
         f"Received message dialog_id: {body.dialog_id}, last_msg_id: {body.last_message_id}"
     )
-    return GetMessageResponseModel(
-        new_msg_text=body.last_msg_text, dialog_id=body.dialog_id
-    )
+    reply = await _call_llm(body.last_msg_text)
+    return GetMessageResponseModel(new_msg_text=reply, dialog_id=body.dialog_id)
+
+
+async def _call_llm(message: str) -> str:
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                f"{LLM_URL}/v1/chat/completions",
+                json={
+                    "model": "qwen2.5:1.5b",
+                    "messages": [
+                        {"role": "system", "content": "You are a friendly assistant. Reply concisely."},
+                        {"role": "user", "content": message},
+                    ],
+                    "temperature": 0.7,
+                    "max_tokens": 256,
+                },
+            )
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"]
+    except Exception as exc:
+        app_logger.warning(f"LLM unavailable, falling back to echo: {exc}")
+        return message
 
 
 @app.post("/predict", response_model=Prediction)

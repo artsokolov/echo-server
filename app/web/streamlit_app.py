@@ -1,3 +1,4 @@
+import os
 from uuid import uuid4
 
 import requests
@@ -5,7 +6,7 @@ import streamlit as st
 
 from app.models import GetMessageRequestModel, IncomingMessage
 
-DEFAULT_BOT_URL = "http://localhost:6872"
+DEFAULT_BOT_URL = os.getenv("FASTAPI_URL", "http://localhost:6872")
 
 st.set_page_config(page_title="Echo Bot", initial_sidebar_state="expanded")
 st.markdown("# Echo bot 🚀")

@@ -1,0 +1,12 @@
+.venv
+__pycache__
+*.pyc
+*.pyo
+.git
+.gitignore
+notebooks/
+data/
+*.gguf
+portforward_key
+run.sh
+README.md

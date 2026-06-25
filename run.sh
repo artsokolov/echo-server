@@ -37,12 +37,4 @@ echo "  http://$REMOTE_HOST:$RANDOM_PORT"
 echo "====================================================="
 echo ""
 
-# Start FastAPI in background, Streamlit in foreground
-uv run fastapi run app/api/main.py --host 0.0.0.0 --port 6872 &
-FASTAPI_PID=$!
-
-trap "kill $FASTAPI_PID 2>/dev/null" EXIT
-
-PYTHONPATH=$(pwd) uv run streamlit run app/web/streamlit_app.py \
-  --server.port 8502 \
-  --server.address 0.0.0.0
+docker compose up --build
