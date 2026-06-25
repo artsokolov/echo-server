@@ -4,3 +4,4 @@ portforward_key
 # MLflow tracking artifacts (large files)
 mlruns/
 tmp_results/
+mlflow.db
