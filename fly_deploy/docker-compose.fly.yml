@@ -1,0 +1,26 @@
+services:
+  api:
+    image: registry.fly.io/anri-puankar-gmail-com-harbour-images:api-v1
+    ports:
+      - "8000:8000"
+    environment:
+      APP_PORT: "8000"
+      CLASSIFIER_URL: http://localhost:8001
+      DATABASE_URL: postgresql://app:app@localhost:5432/app
+      REQUEST_TIMEOUT_SECONDS: "5.0"
+      DB_CONNECT_RETRIES: "45"
+      DB_CONNECT_SLEEP_SECONDS: "1.0"
+
+  classifier:
+    image: registry.fly.io/anri-puankar-gmail-com-harbour-images:classifier-v1
+    environment:
+      APP_PORT: "8001"
+      MODEL_NAME: keyword-bot-classifier
+      MODEL_VERSION: fly-v1
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
