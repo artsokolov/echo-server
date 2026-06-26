@@ -50,12 +50,14 @@ BOT_PHRASES = [
 HUMAN_INFORMAL_WORDS = {
     "lol", "lmao", "lmfao", "haha", "hehe", "hahaha", "omg", "omfg",
     "wtf", "idk", "tbh", "btw", "ngl", "imo", "imho", "irl",
-    "bruh", "bro", "dude", "mate",
-    "yeah", "yep", "nah", "nope", "yup",
-    "gonna", "wanna", "gotta", "kinda", "sorta", "dunno",
-    "thx", "ty", "np", "ikr", "smh", "fwiw",
-    "hmm", "ugh", "meh",
-    "u", "ur", "cuz", "coz", "tho",
+    "bruh", "bro", "dude", "mate", "yo", "hey", "sup", "wassup",
+    "yeah", "yep", "nah", "nope", "yup", "yolo", "swag",
+    "gonna", "wanna", "gotta", "kinda", "sorta", "dunno", "lemme", "gimme",
+    "thx", "ty", "np", "ikr", "smh", "fwiw", "afk", "gg", "rn",
+    "hmm", "ugh", "meh", "welp", "aight", "alright",
+    "u", "ur", "cuz", "coz", "tho", "tbf", "istg", "imo",
+    "dope", "sick", "lit", "vibe", "vibes", "lowkey", "highkey",
+    "fr", "frfr", "nah", "bro", "slay", "fam", "no cap", "cap",
 }
 # Substrings that are safe to match (longer, no false positive risk)
 HUMAN_INFORMAL_SUBSTRINGS = ["...", "hm,", "eh,", "man,", "r u ", "lmfao"]
@@ -122,7 +124,9 @@ def ml_score(text: str) -> float:
 def heuristic_score(texts: list[str]) -> float:
     """Rule-based bot probability from text features."""
     combined = " ".join(texts).lower()
-    words = combined.split()
+    # Normalize: strip punctuation from word tokens for reliable matching
+    raw_words = combined.split()
+    words = [w.strip(".,!?;:\"'()[]") for w in raw_words]
     n_words = max(len(words), 1)
 
     score = 0.5
@@ -147,8 +151,10 @@ def heuristic_score(texts: list[str]) -> float:
 
     # Contractions → human signal (bots often avoid them in formal mode)
     contractions = re.findall(
-        r"\b(don't|can't|won't|i'm|i've|i'll|it's|that's|didn't|doesn't|"
-        r"isn't|you're|we're|they're|i'd|i'd|couldn't|wouldn't|shouldn't)\b",
+        r"(don't|can't|won't|i'm|i've|i'll|it's|that's|didn't|doesn't|"
+        r"isn't|you're|we're|they're|i'd|couldn't|wouldn't|shouldn't|"
+        r"what's|where's|how's|who's|there's|here's|let's|wasn't|weren't|"
+        r"haven't|hasn't|ain't)",
         combined,
     )
     score -= min(len(contractions) * 0.06, 0.18)
