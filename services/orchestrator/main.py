@@ -11,9 +11,9 @@ import logging
 import os
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import UUID4, BaseModel, StrictStr
+from pydantic import UUID4, BaseModel, Field, StrictStr
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,10 +25,48 @@ LLM_MODEL = os.getenv("LLM_MODEL", "qwen2.5:1.5b")
 app = FastAPI(title="Orchestrator Gateway")
 
 
+class PredictRequest(BaseModel):
+    text: StrictStr
+    dialog_id: UUID4
+    id: UUID4
+    participant_index: int = 0
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "text": "Of course! I'd be happy to help you with that.",
+                    "dialog_id": "550e8400-e29b-41d4-a716-446655440001",
+                    "id": "550e8400-e29b-41d4-a716-446655440002",
+                    "participant_index": 0,
+                },
+                {
+                    "text": "lol yeah bro idk what u mean tbh",
+                    "dialog_id": "550e8400-e29b-41d4-a716-446655440003",
+                    "id": "550e8400-e29b-41d4-a716-446655440004",
+                    "participant_index": 0,
+                },
+            ]
+        }
+    }
+
+
 class GetMessageRequest(BaseModel):
     dialog_id: UUID4
     last_msg_text: StrictStr
     last_message_id: UUID4 | None = None
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "dialog_id": "550e8400-e29b-41d4-a716-446655440001",
+                    "last_msg_text": "What is the capital of France?",
+                    "last_message_id": None,
+                }
+            ]
+        }
+    }
 
 
 class GetMessageResponse(BaseModel):
@@ -42,13 +80,12 @@ def health() -> dict[str, str]:
 
 
 @app.post("/predict")
-async def predict(request: Request) -> JSONResponse:
+async def predict(body: PredictRequest) -> JSONResponse:
     """Forward /predict requests to the classifier service."""
-    body = await request.json()
     logger.info("Routing /predict → %s/predict", CLASSIFIER_URL)
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(f"{CLASSIFIER_URL}/predict", json=body)
+            resp = await client.post(f"{CLASSIFIER_URL}/predict", json=body.model_dump(mode="json"))
             resp.raise_for_status()
             return JSONResponse(content=resp.json(), status_code=resp.status_code)
     except httpx.HTTPStatusError as exc:
